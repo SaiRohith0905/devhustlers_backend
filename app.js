@@ -4,18 +4,24 @@ const {
 } = require("./src/config/mongoose.config.js");
 const app = express();
 
-const UserModel = require("./src/models/UserModel.js");
+const { signUpValidator } = require("./src/utils/signUpValidator.js");
 
+const bcrypt = require("bcrypt");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const UserModel = require("./src/models/UserModel.js");
+const { jwtAuthMiddleware } = require("./src/middlewares/jwtAuthMiddleware.js");
 /*express.json() --This middleware is provided by express, where it checks if each request.body has data of type JSON then it 
 converts that data into javascript object and attaches to req.body and we can use that data in our server
 Note:this middleware only works for req.body has data of type JSON, otherwise it will just igonre */
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/", (req, res) => {
   res.send("Hello from server");
 });
 
-app.get("/user/getallusers", async (req, res) => {
+app.get("/user/getallusers", jwtAuthMiddleware, async (req, res) => {
   try {
     const data = await UserModel.find();
     if (data.length === 0) {
@@ -28,7 +34,7 @@ app.get("/user/getallusers", async (req, res) => {
   }
 });
 
-app.put("/user/updateuser", async (req, res) => {
+app.put("/user/updateuser", jwtAuthMiddleware, async (req, res) => {
   const ALLOWED_UPDATES = [
     "firstName",
     "lastName",
@@ -69,10 +75,22 @@ app.put("/user/updateuser", async (req, res) => {
   }
 });
 
-app.post("/user/signUp", async (req, res) => {
-  const newUser = UserModel(req.body);
-
+app.post("/user/signup", async (req, res) => {
   try {
+    //validate the req.body
+    signUpValidator(req);
+
+    const { firstName, lastName, emailId, password } = req.body;
+    //hashing password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const newUser = UserModel({
+      firstName,
+      lastName,
+      emailId,
+      password: hashedPassword,
+    });
+
     await newUser.save();
     res.status(200).send("User SignedUp Successfully, new user:" + newUser);
   } catch (error) {
@@ -80,7 +98,41 @@ app.post("/user/signUp", async (req, res) => {
   }
 });
 
-app.delete("/user/deleteuser", async (req, res) => {
+app.post("/user/signIn", async (req, res) => {
+  try {
+    const { emailId, password } = req.body;
+    //find if user(emailId exists)
+    const data = await UserModel.findOne({ emailId: emailId });
+    if (!data) {
+      throw new Error("Invalid Credentials ");
+    }
+    // Check if password is correct.
+
+    const validpassword = await bcrypt.compare(password, data.password);
+
+    if (!validpassword) {
+      throw new Error("Ivalid Credentials");
+    } else {
+      // create a jwt token
+
+      const token = jwt.sign({ _id: data._id }, "mysecretkey", {
+        expiresIn: "1h",
+      });
+
+      //send the token with cookies
+
+      res.cookie("token", token);
+
+      //sending response after successfull signin
+      res.status(200).send("User signedIn successfully");
+    }
+  } catch (error) {
+    res.status(400).send("Error : " + error.message);
+    console.log("Error : " + error.message);
+  }
+});
+
+app.delete("/user/deleteuser", jwtAuthMiddleware, async (req, res) => {
   const { emailId } = req.body;
 
   try {
