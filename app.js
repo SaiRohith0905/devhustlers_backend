@@ -3,16 +3,12 @@ const {
   connectToMongoDBUsingMongoose,
 } = require("./src/config/mongoose.config.js");
 const app = express();
-
-const { signUpValidator } = require("./src/utils/signUpValidator.js");
-
 const { authRouter } = require("./src/Routes/authRoute.js");
-const bcrypt = require("bcrypt");
 const cookieParser = require("cookie-parser");
-const jwt = require("jsonwebtoken");
-const UserModel = require("./src/models/UserModel.js");
 const { jwtAuthMiddleware } = require("./src/middlewares/jwtAuthMiddleware.js");
 const { profileRouter } = require("./src/Routes/profileRoute.js");
+const connectionRequestRouter = require("./src/Routes/connectionRequestRoute.js");
+
 /*express.json() --This middleware is provided by express, where it checks if each request.body has data of type JSON then it 
 converts that data into javascript object and attaches to req.body and we can use that data in our server
 Note:this middleware only works for req.body has data of type JSON, otherwise it will just igonre */
@@ -21,7 +17,7 @@ app.use(cookieParser());
 
 app.use("/auth", authRouter);
 app.use("/profile", jwtAuthMiddleware, profileRouter);
-
+app.use("/request", jwtAuthMiddleware, connectionRequestRouter);
 // Application level Error
 app.use("/", (err, req, res, next) => {
   if (err) {
