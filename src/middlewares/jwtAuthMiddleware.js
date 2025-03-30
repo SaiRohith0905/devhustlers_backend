@@ -20,6 +20,7 @@ async function jwtAuthMiddleware(req, res, next) {
     if (!isValidUser) {
       return res.status(404).send("Token malformed");
     } else {
+      req.id = isValidUser._id;
       next();
     }
   } catch (error) {
